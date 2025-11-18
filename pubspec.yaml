@@ -17,10 +17,11 @@ dependencies:
   # Navigation
   go_router: ^13.2.0
 
-  # Firebase
-  firebase_core: ^2.25.4
-  cloud_firestore: ^4.15.8
-  firebase_storage: ^11.6.9
+  # Firebase (uncomment when configured)
+  # Run: flutterfire configure
+  # firebase_core: ^2.25.4
+  # cloud_firestore: ^4.15.8
+  # firebase_storage: ^11.6.9
 
   # Camera & Image
   image_picker: ^1.0.7
@@ -55,17 +56,11 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-  assets:
-    - assets/images/
-    - assets/data/
+  # Note: Assets directories need at least one file
+  # Uncomment when you add images or data files
+  # assets:
+  #   - assets/images/
+  #   - assets/data/
 
-  fonts:
-    - family: Poppins
-      fonts:
-        - asset: assets/fonts/Poppins-Regular.ttf
-        - asset: assets/fonts/Poppins-Medium.ttf
-          weight: 500
-        - asset: assets/fonts/Poppins-SemiBold.ttf
-          weight: 600
-        - asset: assets/fonts/Poppins-Bold.ttf
-          weight: 700
+  # Using google_fonts package instead of local fonts
+  # This downloads fonts automatically at runtime
