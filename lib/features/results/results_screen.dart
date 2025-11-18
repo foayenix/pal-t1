@@ -5,6 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../app/router.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
+import '../../models/equipment.dart';
+import '../../models/exercise.dart';
+import '../../providers/providers.dart';
 
 /// Results screen showing detected equipment and exercise details.
 class ResultsScreen extends ConsumerWidget {
@@ -19,9 +22,9 @@ class ResultsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // TODO: Fetch actual equipment and exercise data from repository
-    // For now, using mock data
-    final mockExercise = _getMockExercise();
+    // Fetch equipment and exercise data
+    final equipmentAsync = ref.watch(equipmentByIdProvider(equipmentId));
+    final exerciseAsync = ref.watch(exerciseByEquipmentIdProvider(equipmentId));
 
     return Scaffold(
       appBar: AppBar(
@@ -31,52 +34,114 @@ class ResultsScreen extends ConsumerWidget {
           onPressed: () => context.go(AppRoutes.home),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppConstants.spacingMd),
+      body: equipmentAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, stack) => _buildErrorState(context, error.toString()),
+        data: (equipment) {
+          if (equipment == null) {
+            return _buildErrorState(context, 'Equipment not found');
+          }
+
+          return exerciseAsync.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (error, stack) => _buildErrorState(context, error.toString()),
+            data: (exercise) {
+              if (exercise == null) {
+                return _buildErrorState(context, 'Exercise not found');
+              }
+
+              return _buildContent(context, equipment, exercise);
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildErrorState(BuildContext context, String message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppConstants.spacingLg),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Equipment identification card
-            _buildEquipmentCard(context, mockExercise),
-
+            const Icon(
+              Icons.error_outline,
+              size: 64,
+              color: AppColors.error,
+            ),
             const SizedBox(height: AppConstants.spacingMd),
-
-            // Video player placeholder
-            _buildVideoPlayer(context, mockExercise['videoUrl'] as String),
-
-            const SizedBox(height: AppConstants.spacingMd),
-
-            // Muscles section
-            _buildMusclesSection(context, mockExercise),
-
-            const SizedBox(height: AppConstants.spacingMd),
-
-            // Steps section
-            _buildStepsSection(context, mockExercise),
-
-            const SizedBox(height: AppConstants.spacingMd),
-
-            // Safety tips section
-            _buildSafetySection(context, mockExercise),
-
-            const SizedBox(height: AppConstants.spacingMd),
-
-            // Common mistakes section
-            _buildMistakesSection(context, mockExercise),
-
+            Text(
+              'Something went wrong',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: AppConstants.spacingSm),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
             const SizedBox(height: AppConstants.spacingXl),
-
-            // Action buttons
-            _buildActionButtons(context),
-
-            const SizedBox(height: AppConstants.spacingMd),
+            ElevatedButton(
+              onPressed: () => context.go(AppRoutes.home),
+              child: const Text('Go Home'),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildEquipmentCard(BuildContext context, Map<String, dynamic> exercise) {
+  Widget _buildContent(BuildContext context, Equipment equipment, Exercise exercise) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(AppConstants.spacingMd),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Equipment identification card
+          _buildEquipmentCard(context, equipment, exercise),
+
+          const SizedBox(height: AppConstants.spacingMd),
+
+          // Video player placeholder
+          _buildVideoPlayer(context, exercise.videoUrl),
+
+          const SizedBox(height: AppConstants.spacingMd),
+
+          // Muscles section
+          _buildMusclesSection(context, exercise),
+
+          const SizedBox(height: AppConstants.spacingMd),
+
+          // Steps section
+          _buildStepsSection(context, exercise),
+
+          const SizedBox(height: AppConstants.spacingMd),
+
+          // Safety tips section
+          if (exercise.safetyTips.isNotEmpty) ...[
+            _buildSafetySection(context, exercise),
+            const SizedBox(height: AppConstants.spacingMd),
+          ],
+
+          // Common mistakes section
+          if (exercise.commonMistakes.isNotEmpty) ...[
+            _buildMistakesSection(context, exercise),
+            const SizedBox(height: AppConstants.spacingMd),
+          ],
+
+          const SizedBox(height: AppConstants.spacingLg),
+
+          // Action buttons
+          _buildActionButtons(context),
+
+          const SizedBox(height: AppConstants.spacingMd),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEquipmentCard(BuildContext context, Equipment equipment, Exercise exercise) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppConstants.spacingMd),
@@ -90,12 +155,12 @@ class ResultsScreen extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        exercise['name'] as String,
+                        exercise.name,
                         style: Theme.of(context).textTheme.headlineMedium,
                       ),
                       const SizedBox(height: AppConstants.spacingXs),
                       Text(
-                        exercise['equipment'] as String,
+                        equipment.name,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               color: AppColors.textSecondaryLight,
                             ),
@@ -103,7 +168,7 @@ class ResultsScreen extends ConsumerWidget {
                     ],
                   ),
                 ),
-                _buildDifficultyBadge(context, exercise['difficulty'] as String),
+                _buildDifficultyBadge(context, exercise.difficulty),
               ],
             ),
             if (confidence > 0) ...[
@@ -131,20 +196,18 @@ class ResultsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildDifficultyBadge(BuildContext context, String difficulty) {
+  Widget _buildDifficultyBadge(BuildContext context, ExerciseDifficulty difficulty) {
     Color badgeColor;
-    switch (difficulty.toLowerCase()) {
-      case 'beginner':
+    switch (difficulty) {
+      case ExerciseDifficulty.beginner:
         badgeColor = AppColors.success;
         break;
-      case 'intermediate':
+      case ExerciseDifficulty.intermediate:
         badgeColor = AppColors.warning;
         break;
-      case 'advanced':
+      case ExerciseDifficulty.advanced:
         badgeColor = AppColors.error;
         break;
-      default:
-        badgeColor = AppColors.info;
     }
 
     return Container(
@@ -158,7 +221,7 @@ class ResultsScreen extends ConsumerWidget {
         border: Border.all(color: badgeColor, width: 1),
       ),
       child: Text(
-        difficulty,
+        difficulty.displayName,
         style: Theme.of(context).textTheme.labelLarge?.copyWith(
               color: badgeColor,
             ),
@@ -166,7 +229,7 @@ class ResultsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildVideoPlayer(BuildContext context, String videoUrl) {
+  Widget _buildVideoPlayer(BuildContext context, String? videoUrl) {
     // TODO: Implement actual video player with chewie
     return Card(
       child: Container(
@@ -184,7 +247,7 @@ class ResultsScreen extends ConsumerWidget {
                   // TODO: Implement video playback
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Video player will be implemented'),
+                      content: Text('Video player coming soon'),
                     ),
                   );
                 },
@@ -208,10 +271,7 @@ class ResultsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildMusclesSection(BuildContext context, Map<String, dynamic> exercise) {
-    final primary = exercise['primaryMuscles'] as List<String>;
-    final secondary = exercise['secondaryMuscles'] as List<String>;
-
+  Widget _buildMusclesSection(BuildContext context, Exercise exercise) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppConstants.spacingMd),
@@ -235,7 +295,7 @@ class ResultsScreen extends ConsumerWidget {
             Wrap(
               spacing: AppConstants.spacingSm,
               runSpacing: AppConstants.spacingSm,
-              children: primary
+              children: exercise.primaryMuscles
                   .map((muscle) => Chip(
                         label: Text(muscle),
                         backgroundColor: AppColors.primary.withOpacity(0.1),
@@ -244,35 +304,35 @@ class ResultsScreen extends ConsumerWidget {
                   .toList(),
             ),
 
-            const SizedBox(height: AppConstants.spacingMd),
+            if (exercise.secondaryMuscles.isNotEmpty) ...[
+              const SizedBox(height: AppConstants.spacingMd),
 
-            // Secondary muscles
-            Text(
-              'Secondary',
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: AppColors.textSecondaryLight,
-                  ),
-            ),
-            const SizedBox(height: AppConstants.spacingSm),
-            Wrap(
-              spacing: AppConstants.spacingSm,
-              runSpacing: AppConstants.spacingSm,
-              children: secondary
-                  .map((muscle) => Chip(
-                        label: Text(muscle),
-                        backgroundColor: AppColors.borderLight,
-                      ))
-                  .toList(),
-            ),
+              // Secondary muscles
+              Text(
+                'Secondary',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: AppColors.textSecondaryLight,
+                    ),
+              ),
+              const SizedBox(height: AppConstants.spacingSm),
+              Wrap(
+                spacing: AppConstants.spacingSm,
+                runSpacing: AppConstants.spacingSm,
+                children: exercise.secondaryMuscles
+                    .map((muscle) => Chip(
+                          label: Text(muscle),
+                          backgroundColor: AppColors.borderLight,
+                        ))
+                    .toList(),
+              ),
+            ],
           ],
         ),
       ),
     );
   }
 
-  Widget _buildStepsSection(BuildContext context, Map<String, dynamic> exercise) {
-    final steps = exercise['steps'] as List<String>;
-
+  Widget _buildStepsSection(BuildContext context, Exercise exercise) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppConstants.spacingMd),
@@ -284,7 +344,7 @@ class ResultsScreen extends ConsumerWidget {
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: AppConstants.spacingMd),
-            ...steps.asMap().entries.map((entry) => Padding(
+            ...exercise.steps.asMap().entries.map((entry) => Padding(
                   padding: const EdgeInsets.only(bottom: AppConstants.spacingMd),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -323,9 +383,7 @@ class ResultsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildSafetySection(BuildContext context, Map<String, dynamic> exercise) {
-    final tips = exercise['safetyTips'] as List<String>;
-
+  Widget _buildSafetySection(BuildContext context, Exercise exercise) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppConstants.spacingMd),
@@ -343,7 +401,7 @@ class ResultsScreen extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: AppConstants.spacingMd),
-            ...tips.map((tip) => Padding(
+            ...exercise.safetyTips.map((tip) => Padding(
                   padding: const EdgeInsets.only(bottom: AppConstants.spacingSm),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -369,9 +427,7 @@ class ResultsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildMistakesSection(BuildContext context, Map<String, dynamic> exercise) {
-    final mistakes = exercise['commonMistakes'] as List<String>;
-
+  Widget _buildMistakesSection(BuildContext context, Exercise exercise) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppConstants.spacingMd),
@@ -389,7 +445,7 @@ class ResultsScreen extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: AppConstants.spacingMd),
-            ...mistakes.map((mistake) => Padding(
+            ...exercise.commonMistakes.map((mistake) => Padding(
                   padding: const EdgeInsets.only(bottom: AppConstants.spacingSm),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -432,37 +488,5 @@ class ResultsScreen extends ConsumerWidget {
         ),
       ],
     );
-  }
-
-  /// Mock exercise data - will be replaced with actual Firestore data
-  Map<String, dynamic> _getMockExercise() {
-    return {
-      'name': 'Leg Press',
-      'equipment': 'Leg Press Machine',
-      'difficulty': 'Beginner',
-      'primaryMuscles': ['Quadriceps', 'Glutes'],
-      'secondaryMuscles': ['Hamstrings', 'Calves'],
-      'steps': [
-        'Adjust the seat so your knees are at a 90-degree angle when your feet are on the platform.',
-        'Place your feet shoulder-width apart on the footplate.',
-        'Grasp the handles on either side and keep your back flat against the seat.',
-        'Push the platform away by extending your legs, but do not lock your knees.',
-        'Slowly lower the weight back down, keeping control throughout the movement.',
-        'Repeat for the desired number of repetitions.',
-      ],
-      'safetyTips': [
-        'Never lock your knees at the top of the movement.',
-        'Keep your lower back pressed firmly against the seat.',
-        'Use a controlled tempo – avoid bouncing the weight.',
-        'Start with lighter weight to master the form.',
-      ],
-      'commonMistakes': [
-        'Allowing the lower back to round off the seat.',
-        'Placing feet too high or too low on the platform.',
-        'Locking knees at full extension.',
-        'Using momentum instead of controlled movement.',
-      ],
-      'videoUrl': 'https://example.com/videos/leg-press.mp4',
-    };
   }
 }

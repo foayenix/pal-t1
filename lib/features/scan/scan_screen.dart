@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../app/router.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
+import '../../providers/providers.dart';
 
 /// State for the scan screen
 enum ScanState { initial, capturing, processing, error }
@@ -85,20 +86,49 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       _state = ScanState.processing;
     });
 
-    // TODO: Call the actual recognition service here
-    // For now, simulate processing and navigate to results with mock data
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      // Get the recognition service from the provider
+      final recognitionService = ref.read(recognitionServiceProvider);
 
-    if (mounted) {
-      // Navigate to results with mock equipment ID
-      // In real implementation, this would come from the recognition service
-      context.push(
-        AppRoutes.results,
-        extra: {
-          'equipmentId': 'leg_press', // Mock equipment ID
-          'confidence': 0.87,
-        },
-      );
+      // Call the recognition service
+      final result = await recognitionService.recogniseEquipment(imageFile);
+
+      if (!mounted) return;
+
+      if (result.isSuccessful) {
+        // Check if confidence is above threshold
+        if (result.isConfident(AppConstants.minConfidenceThreshold)) {
+          // Navigate to results with the recognised equipment
+          context.push(
+            AppRoutes.results,
+            extra: {
+              'equipmentId': result.equipmentId,
+              'confidence': result.confidence,
+            },
+          );
+        } else {
+          // Low confidence - show error and suggest manual selection
+          setState(() {
+            _state = ScanState.error;
+            _errorMessage = 'Could not confidently identify the equipment. '
+                'Confidence: ${(result.confidence * 100).toStringAsFixed(0)}%. '
+                'Please try again or select manually.';
+          });
+        }
+      } else {
+        // Recognition failed
+        setState(() {
+          _state = ScanState.error;
+          _errorMessage = result.errorMessage ?? 'Recognition failed. Please try again.';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _state = ScanState.error;
+          _errorMessage = 'An error occurred: ${e.toString()}';
+        });
+      }
     }
   }
 
@@ -321,6 +351,14 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                 });
               },
               child: const Text('Try Again'),
+            ),
+            const SizedBox(height: AppConstants.spacingMd),
+            OutlinedButton(
+              onPressed: () {
+                context.pop();
+                context.push(AppRoutes.browse);
+              },
+              child: const Text('Browse Manually'),
             ),
           ],
         ),

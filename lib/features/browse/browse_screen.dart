@@ -5,106 +5,19 @@ import 'package:go_router/go_router.dart';
 import '../../app/router.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
+import '../../models/equipment.dart';
+import '../../providers/providers.dart';
 
 /// Browse screen for manually selecting equipment.
-class BrowseScreen extends ConsumerStatefulWidget {
+class BrowseScreen extends ConsumerWidget {
   const BrowseScreen({super.key});
 
   @override
-  ConsumerState<BrowseScreen> createState() => _BrowseScreenState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final filteredEquipmentAsync = ref.watch(filteredEquipmentProvider);
+    final searchQuery = ref.watch(equipmentSearchQueryProvider);
+    final selectedCategory = ref.watch(selectedCategoryProvider);
 
-class _BrowseScreenState extends ConsumerState<BrowseScreen> {
-  String _searchQuery = '';
-  String _selectedCategory = 'All';
-
-  // TODO: Replace with actual data from repository
-  final List<Map<String, dynamic>> _mockEquipment = [
-    {
-      'id': 'leg_press',
-      'name': 'Leg Press Machine',
-      'category': 'Machine',
-      'icon': Icons.fitness_center,
-    },
-    {
-      'id': 'lat_pulldown',
-      'name': 'Lat Pulldown Machine',
-      'category': 'Machine',
-      'icon': Icons.fitness_center,
-    },
-    {
-      'id': 'chest_press',
-      'name': 'Chest Press Machine',
-      'category': 'Machine',
-      'icon': Icons.fitness_center,
-    },
-    {
-      'id': 'treadmill',
-      'name': 'Treadmill',
-      'category': 'Cardio',
-      'icon': Icons.directions_run,
-    },
-    {
-      'id': 'rowing_machine',
-      'name': 'Rowing Machine',
-      'category': 'Cardio',
-      'icon': Icons.rowing,
-    },
-    {
-      'id': 'cable_crossover',
-      'name': 'Cable Crossover',
-      'category': 'Cable',
-      'icon': Icons.fitness_center,
-    },
-    {
-      'id': 'dumbbells',
-      'name': 'Dumbbells',
-      'category': 'Free Weight',
-      'icon': Icons.fitness_center,
-    },
-    {
-      'id': 'barbell_bench',
-      'name': 'Barbell Bench Press',
-      'category': 'Free Weight',
-      'icon': Icons.fitness_center,
-    },
-    {
-      'id': 'squat_rack',
-      'name': 'Squat Rack',
-      'category': 'Free Weight',
-      'icon': Icons.fitness_center,
-    },
-    {
-      'id': 'smith_machine',
-      'name': 'Smith Machine',
-      'category': 'Machine',
-      'icon': Icons.fitness_center,
-    },
-  ];
-
-  List<String> get _categories {
-    final categories = _mockEquipment
-        .map((e) => e['category'] as String)
-        .toSet()
-        .toList();
-    categories.sort();
-    return ['All', ...categories];
-  }
-
-  List<Map<String, dynamic>> get _filteredEquipment {
-    return _mockEquipment.where((equipment) {
-      final matchesCategory = _selectedCategory == 'All' ||
-          equipment['category'] == _selectedCategory;
-      final matchesSearch = equipment['name']
-          .toString()
-          .toLowerCase()
-          .contains(_searchQuery.toLowerCase());
-      return matchesCategory && matchesSearch;
-    }).toList();
-  }
-
-  @override
-  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Browse Equipment'),
@@ -119,14 +32,18 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
           Padding(
             padding: const EdgeInsets.all(AppConstants.spacingMd),
             child: TextField(
-              onChanged: (value) => setState(() => _searchQuery = value),
+              onChanged: (value) {
+                ref.read(equipmentSearchQueryProvider.notifier).state = value;
+              },
               decoration: InputDecoration(
                 hintText: 'Search equipment...',
                 prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchQuery.isNotEmpty
+                suffixIcon: searchQuery.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.clear),
-                        onPressed: () => setState(() => _searchQuery = ''),
+                        onPressed: () {
+                          ref.read(equipmentSearchQueryProvider.notifier).state = '';
+                        },
                       )
                     : null,
               ),
@@ -134,48 +51,66 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
           ),
 
           // Category filter
-          SizedBox(
-            height: 48,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppConstants.spacingMd,
-              ),
-              itemCount: _categories.length,
-              itemBuilder: (context, index) {
-                final category = _categories[index];
-                final isSelected = category == _selectedCategory;
-
-                return Padding(
-                  padding: const EdgeInsets.only(right: AppConstants.spacingSm),
-                  child: FilterChip(
-                    selected: isSelected,
-                    label: Text(category),
-                    onSelected: (selected) {
-                      setState(() => _selectedCategory = category);
-                    },
-                    selectedColor: AppColors.primary.withOpacity(0.2),
-                    checkmarkColor: AppColors.primary,
-                  ),
-                );
-              },
-            ),
-          ),
+          _buildCategoryFilter(context, ref, selectedCategory),
 
           const SizedBox(height: AppConstants.spacingMd),
 
           // Equipment list
           Expanded(
-            child: _filteredEquipment.isEmpty
-                ? _buildEmptyState()
-                : _buildEquipmentList(),
+            child: filteredEquipmentAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stack) => Center(
+                child: Text('Error: ${error.toString()}'),
+              ),
+              data: (equipment) {
+                if (equipment.isEmpty) {
+                  return _buildEmptyState(context);
+                }
+                return _buildEquipmentList(context, equipment);
+              },
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildCategoryFilter(BuildContext context, WidgetRef ref, String selectedCategory) {
+    final categories = [
+      'All',
+      ...EquipmentCategory.values.map((c) => c.displayName),
+    ];
+
+    return SizedBox(
+      height: 48,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppConstants.spacingMd,
+        ),
+        itemCount: categories.length,
+        itemBuilder: (context, index) {
+          final category = categories[index];
+          final isSelected = category == selectedCategory;
+
+          return Padding(
+            padding: const EdgeInsets.only(right: AppConstants.spacingSm),
+            child: FilterChip(
+              selected: isSelected,
+              label: Text(category),
+              onSelected: (selected) {
+                ref.read(selectedCategoryProvider.notifier).state = category;
+              },
+              selectedColor: AppColors.primary.withOpacity(0.2),
+              checkmarkColor: AppColors.primary,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -204,18 +139,39 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
     );
   }
 
-  Widget _buildEquipmentList() {
+  Widget _buildEquipmentList(BuildContext context, List<Equipment> equipmentList) {
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: AppConstants.spacingMd),
-      itemCount: _filteredEquipment.length,
+      itemCount: equipmentList.length,
       itemBuilder: (context, index) {
-        final equipment = _filteredEquipment[index];
-        return _buildEquipmentCard(equipment);
+        final equipment = equipmentList[index];
+        return _buildEquipmentCard(context, equipment);
       },
     );
   }
 
-  Widget _buildEquipmentCard(Map<String, dynamic> equipment) {
+  Widget _buildEquipmentCard(BuildContext context, Equipment equipment) {
+    IconData iconData;
+    switch (equipment.category) {
+      case EquipmentCategory.cardio:
+        iconData = Icons.directions_run;
+        break;
+      case EquipmentCategory.freeWeight:
+        iconData = Icons.fitness_center;
+        break;
+      case EquipmentCategory.machine:
+        iconData = Icons.precision_manufacturing;
+        break;
+      case EquipmentCategory.cable:
+        iconData = Icons.cable;
+        break;
+      case EquipmentCategory.bodyweight:
+        iconData = Icons.accessibility_new;
+        break;
+      default:
+        iconData = Icons.fitness_center;
+    }
+
     return Card(
       margin: const EdgeInsets.only(bottom: AppConstants.spacingMd),
       child: InkWell(
@@ -223,7 +179,7 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
           context.push(
             AppRoutes.results,
             extra: {
-              'equipmentId': equipment['id'],
+              'equipmentId': equipment.id,
               'confidence': 0.0, // No confidence since manually selected
             },
           );
@@ -242,7 +198,7 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
                   borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                 ),
                 child: Icon(
-                  equipment['icon'] as IconData,
+                  iconData,
                   color: AppColors.primary,
                   size: 28,
                 ),
@@ -256,7 +212,7 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      equipment['name'] as String,
+                      equipment.name,
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: AppConstants.spacingXs),
@@ -270,7 +226,7 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
                         borderRadius: BorderRadius.circular(AppConstants.radiusSm),
                       ),
                       child: Text(
-                        equipment['category'] as String,
+                        equipment.category.displayName,
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ),
