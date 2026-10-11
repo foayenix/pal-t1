@@ -3,21 +3,15 @@ import '../models/exercise.dart';
 
 /// Repository for accessing exercise data.
 ///
-/// Currently uses in-memory seed data. Ready to be replaced with Firestore.
+/// Backed by the curated in-app catalog below.
 class ExerciseRepository {
-  // TODO: Replace with Firestore when Firebase is configured
-  // final FirebaseFirestore _firestore;
-  // ExerciseRepository(this._firestore);
-
   /// Gets all available exercises.
   Future<List<Exercise>> getAllExercises() async {
-    await Future.delayed(const Duration(milliseconds: 300));
     return _seedExercises;
   }
 
   /// Gets exercise by ID.
   Future<Exercise?> getExerciseById(String id) async {
-    await Future.delayed(const Duration(milliseconds: 100));
     try {
       return _seedExercises.firstWhere((e) => e.id == id);
     } catch (_) {
@@ -27,7 +21,6 @@ class ExerciseRepository {
 
   /// Gets exercise by equipment ID.
   Future<Exercise?> getExerciseByEquipmentId(String equipmentId) async {
-    await Future.delayed(const Duration(milliseconds: 100));
     try {
       return _seedExercises.firstWhere((e) => e.equipmentId == equipmentId);
     } catch (_) {
@@ -37,7 +30,6 @@ class ExerciseRepository {
 
   /// Gets all exercises for a specific equipment.
   Future<List<Exercise>> getExercisesForEquipment(String equipmentId) async {
-    await Future.delayed(const Duration(milliseconds: 200));
     return _seedExercises.where((e) => e.equipmentId == equipmentId).toList();
   }
 
@@ -74,7 +66,6 @@ class ExerciseRepository {
         'Locking knees at full extension.',
         'Using momentum instead of controlled movement.',
       ],
-      videoUrl: 'https://example.com/videos/leg-press.mp4',
     ),
 
     // Lat Pulldown
@@ -105,7 +96,6 @@ class ExerciseRepository {
         'Not fully extending arms at the top.',
         'Pulling with the biceps instead of the back.',
       ],
-      videoUrl: 'https://example.com/videos/lat-pulldown.mp4',
     ),
 
     // Chest Press
@@ -136,7 +126,6 @@ class ExerciseRepository {
         'Lifting shoulders during the press.',
         'Rushing through repetitions.',
       ],
-      videoUrl: 'https://example.com/videos/chest-press.mp4',
     ),
 
     // Treadmill
@@ -168,7 +157,6 @@ class ExerciseRepository {
         'Overstriding or heel striking.',
         'Setting incline or speed too high too soon.',
       ],
-      videoUrl: 'https://example.com/videos/treadmill.mp4',
     ),
 
     // Rowing Machine
@@ -199,7 +187,6 @@ class ExerciseRepository {
         'Rushing the recovery phase.',
         'Rounding the lower back.',
       ],
-      videoUrl: 'https://example.com/videos/rowing.mp4',
     ),
 
     // Cable Crossover
@@ -230,7 +217,6 @@ class ExerciseRepository {
         'Leaning too far forward.',
         'Not getting a full stretch at the top.',
       ],
-      videoUrl: 'https://example.com/videos/cable-crossover.mp4',
     ),
 
     // Dumbbell Curl
@@ -261,7 +247,6 @@ class ExerciseRepository {
         'Not fully extending arms at the bottom.',
         'Using momentum instead of muscle control.',
       ],
-      videoUrl: 'https://example.com/videos/dumbbell-curl.mp4',
     ),
 
     // Barbell Bench Press
@@ -293,7 +278,6 @@ class ExerciseRepository {
         'Bouncing bar off chest.',
         'Uneven grip or bar path.',
       ],
-      videoUrl: 'https://example.com/videos/bench-press.mp4',
     ),
 
     // Squat
@@ -325,7 +309,6 @@ class ExerciseRepository {
         'Rounding the lower back.',
         'Not reaching adequate depth.',
       ],
-      videoUrl: 'https://example.com/videos/squat.mp4',
     ),
 
     // Smith Machine Squat
@@ -357,7 +340,6 @@ class ExerciseRepository {
         'Not using full range of motion.',
         'Forgetting to lock/unlock the bar properly.',
       ],
-      videoUrl: 'https://example.com/videos/smith-squat.mp4',
     ),
 
     // Leg Curl
@@ -388,7 +370,6 @@ class ExerciseRepository {
         'Not achieving full range of motion.',
         'Going too heavy too soon.',
       ],
-      videoUrl: 'https://example.com/videos/leg-curl.mp4',
     ),
 
     // Leg Extension
@@ -419,7 +400,6 @@ class ExerciseRepository {
         'Swinging legs to build momentum.',
         'Not aligning knee with machine pivot.',
       ],
-      videoUrl: 'https://example.com/videos/leg-extension.mp4',
     ),
 
     // Shoulder Press Machine
@@ -450,7 +430,6 @@ class ExerciseRepository {
         'Using momentum instead of controlled motion.',
         'Not achieving full range of motion.',
       ],
-      videoUrl: 'https://example.com/videos/shoulder-press.mp4',
     ),
 
     // Seated Row
@@ -481,7 +460,6 @@ class ExerciseRepository {
         'Not fully extending arms on the return.',
         'Shrugging shoulders instead of retracting.',
       ],
-      videoUrl: 'https://example.com/videos/seated-row.mp4',
     ),
 
     // Elliptical
@@ -512,7 +490,6 @@ class ExerciseRepository {
         'Going too fast with poor form.',
         'Setting resistance too high initially.',
       ],
-      videoUrl: 'https://example.com/videos/elliptical.mp4',
     ),
   ];
 }

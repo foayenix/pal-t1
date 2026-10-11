@@ -80,12 +80,8 @@ app.*.map.json
 # Coverage
 coverage/
 
-# Firebase
-**/android/app/google-services.json
-**/ios/Runner/GoogleService-Info.plist
-**/firebase_options.dart
-
 # Secrets
+pal_secrets.json
 *.env
 .env.*
 secrets/

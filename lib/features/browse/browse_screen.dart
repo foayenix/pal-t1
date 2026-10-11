@@ -23,7 +23,7 @@ class BrowseScreen extends ConsumerWidget {
         title: const Text('Browse Equipment'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
+          onPressed: () => popOrGoHome(context),
         ),
       ),
       body: Column(
@@ -42,7 +42,9 @@ class BrowseScreen extends ConsumerWidget {
                     ? IconButton(
                         icon: const Icon(Icons.clear),
                         onPressed: () {
-                          ref.read(equipmentSearchQueryProvider.notifier).state = '';
+                          ref
+                              .read(equipmentSearchQueryProvider.notifier)
+                              .state = '';
                         },
                       )
                     : null,
@@ -75,7 +77,8 @@ class BrowseScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildCategoryFilter(BuildContext context, WidgetRef ref, String selectedCategory) {
+  Widget _buildCategoryFilter(
+      BuildContext context, WidgetRef ref, String selectedCategory) {
     final categories = [
       'All',
       ...EquipmentCategory.values.map((c) => c.displayName),
@@ -101,7 +104,7 @@ class BrowseScreen extends ConsumerWidget {
               onSelected: (selected) {
                 ref.read(selectedCategoryProvider.notifier).state = category;
               },
-              selectedColor: AppColors.primary.withOpacity(0.2),
+              selectedColor: AppColors.primary.withValues(alpha: 0.2),
               checkmarkColor: AppColors.primary,
             ),
           );
@@ -118,7 +121,7 @@ class BrowseScreen extends ConsumerWidget {
           Icon(
             Icons.search_off,
             size: 64,
-            color: AppColors.textSecondaryLight.withOpacity(0.5),
+            color: AppColors.textSecondaryLight.withValues(alpha: 0.5),
           ),
           const SizedBox(height: AppConstants.spacingMd),
           Text(
@@ -139,7 +142,8 @@ class BrowseScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildEquipmentList(BuildContext context, List<Equipment> equipmentList) {
+  Widget _buildEquipmentList(
+      BuildContext context, List<Equipment> equipmentList) {
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: AppConstants.spacingMd),
       itemCount: equipmentList.length,
@@ -176,13 +180,7 @@ class BrowseScreen extends ConsumerWidget {
       margin: const EdgeInsets.only(bottom: AppConstants.spacingMd),
       child: InkWell(
         onTap: () {
-          context.push(
-            AppRoutes.results,
-            extra: {
-              'equipmentId': equipment.id,
-              'confidence': 0.0, // No confidence since manually selected
-            },
-          );
+          context.push(AppRoutes.catalogResults(equipment.id));
         },
         borderRadius: BorderRadius.circular(AppConstants.radiusLg),
         child: Padding(
@@ -194,7 +192,7 @@ class BrowseScreen extends ConsumerWidget {
                 width: 56,
                 height: 56,
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
+                  color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(AppConstants.radiusMd),
                 ),
                 child: Icon(
@@ -223,7 +221,8 @@ class BrowseScreen extends ConsumerWidget {
                       ),
                       decoration: BoxDecoration(
                         color: AppColors.borderLight,
-                        borderRadius: BorderRadius.circular(AppConstants.radiusSm),
+                        borderRadius:
+                            BorderRadius.circular(AppConstants.radiusSm),
                       ),
                       child: Text(
                         equipment.category.displayName,

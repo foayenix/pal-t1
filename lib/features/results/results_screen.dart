@@ -1,60 +1,86 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/router.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/equipment.dart';
 import '../../models/exercise.dart';
+import '../../models/recognition_result.dart';
 import '../../providers/providers.dart';
 
-/// Results screen showing detected equipment and exercise details.
+/// Results screen showing the identified equipment and how to use it.
+///
+/// Shows either a catalog item picked from Browse ([ResultsScreen.catalog])
+/// or the latest photo scan ([ResultsScreen.scan]).
 class ResultsScreen extends ConsumerWidget {
-  final String equipmentId;
-  final double confidence;
+  /// Catalog equipment to show; null means "show the latest scan".
+  final String? equipmentId;
 
-  const ResultsScreen({
-    super.key,
-    required this.equipmentId,
-    required this.confidence,
-  });
+  const ResultsScreen.catalog({super.key, required String this.equipmentId});
+
+  const ResultsScreen.scan({super.key}) : equipmentId = null;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Fetch equipment and exercise data
-    final equipmentAsync = ref.watch(equipmentByIdProvider(equipmentId));
-    final exerciseAsync = ref.watch(exerciseByEquipmentIdProvider(equipmentId));
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Exercise Details'),
+        title: const Text('How to Use It'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go(AppRoutes.home),
+          onPressed: () => popOrGoHome(context),
         ),
       ),
-      body: equipmentAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stack) => _buildErrorState(context, error.toString()),
-        data: (equipment) {
-          if (equipment == null) {
-            return _buildErrorState(context, 'Equipment not found');
-          }
+      body: _buildBody(context, ref),
+    );
+  }
 
-          return exerciseAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, stack) => _buildErrorState(context, error.toString()),
-            data: (exercise) {
-              if (exercise == null) {
-                return _buildErrorState(context, 'Exercise not found');
-              }
+  Widget _buildBody(BuildContext context, WidgetRef ref) {
+    final catalogId = equipmentId;
+    if (catalogId != null) {
+      return _buildCatalogGuide(context, ref, catalogId, scan: null);
+    }
 
-              return _buildContent(context, equipment, exercise);
-            },
-          );
-        },
-      ),
+    final scan = ref.watch(lastScanProvider);
+    if (scan == null || !scan.isRecognised) {
+      return _buildErrorState(context, 'No scan to show. Take a photo first.');
+    }
+    if (scan.isCatalogMatch) {
+      return _buildCatalogGuide(context, ref, scan.catalogId!, scan: scan);
+    }
+    return _buildContent(context, scan.equipment!, scan.exercise!, scan: scan);
+  }
+
+  /// Loads the curated guide for a catalog item.
+  Widget _buildCatalogGuide(
+    BuildContext context,
+    WidgetRef ref,
+    String catalogId, {
+    required RecognitionResult? scan,
+  }) {
+    final equipmentAsync = ref.watch(equipmentByIdProvider(catalogId));
+    final exerciseAsync = ref.watch(exerciseByEquipmentIdProvider(catalogId));
+
+    return equipmentAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, stack) => _buildErrorState(context, error.toString()),
+      data: (equipment) {
+        if (equipment == null) {
+          return _buildErrorState(context, 'Equipment not found');
+        }
+        return exerciseAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (error, stack) => _buildErrorState(context, error.toString()),
+          data: (exercise) {
+            if (exercise == null) {
+              return _buildErrorState(context, 'Exercise not found');
+            }
+            return _buildContent(context, equipment, exercise, scan: scan);
+          },
+        );
+      },
     );
   }
 
@@ -92,26 +118,54 @@ class ResultsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildContent(BuildContext context, Equipment equipment, Exercise exercise) {
+  Widget _buildContent(
+    BuildContext context,
+    Equipment equipment,
+    Exercise exercise, {
+    required RecognitionResult? scan,
+  }) {
+    final isAiGuide = scan != null && !scan.isCatalogMatch;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppConstants.spacingMd),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Equipment identification card
-          _buildEquipmentCard(context, equipment, exercise),
+          _buildEquipmentCard(context, equipment, exercise, scan: scan),
+
+          if (isAiGuide) ...[
+            const SizedBox(height: AppConstants.spacingMd),
+            _buildNotice(
+              context,
+              icon: Icons.auto_awesome,
+              color: AppColors.info,
+              text: 'This guide was written by AI for the equipment in your '
+                  'photo. If anything looks off, ask gym staff before lifting.',
+            ),
+          ],
+
+          if (scan?.setupNotes != null) ...[
+            const SizedBox(height: AppConstants.spacingMd),
+            _buildNotice(
+              context,
+              icon: Icons.tune,
+              color: AppColors.primary,
+              title: 'On this machine',
+              text: scan!.setupNotes!,
+            ),
+          ],
 
           const SizedBox(height: AppConstants.spacingMd),
 
-          // Video player placeholder
-          _buildVideoPlayer(context, exercise.videoUrl),
+          _buildDemoLink(context, equipment, exercise),
 
           const SizedBox(height: AppConstants.spacingMd),
 
           // Muscles section
-          _buildMusclesSection(context, exercise),
-
-          const SizedBox(height: AppConstants.spacingMd),
+          if (exercise.primaryMuscles.isNotEmpty) ...[
+            _buildMusclesSection(context, exercise),
+            const SizedBox(height: AppConstants.spacingMd),
+          ],
 
           // Steps section
           _buildStepsSection(context, exercise),
@@ -133,7 +187,7 @@ class ResultsScreen extends ConsumerWidget {
           const SizedBox(height: AppConstants.spacingLg),
 
           // Action buttons
-          _buildActionButtons(context),
+          _buildActionButtons(context, isScan: scan != null),
 
           const SizedBox(height: AppConstants.spacingMd),
         ],
@@ -141,7 +195,60 @@ class ResultsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildEquipmentCard(BuildContext context, Equipment equipment, Exercise exercise) {
+  Widget _buildNotice(
+    BuildContext context, {
+    required IconData icon,
+    required Color color,
+    required String text,
+    String? title,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(AppConstants.spacingMd),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: AppConstants.spacingSm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (title != null) ...[
+                  Text(
+                    title,
+                    style: Theme.of(context)
+                        .textTheme
+                        .labelLarge
+                        ?.copyWith(color: color),
+                  ),
+                  const SizedBox(height: AppConstants.spacingXs),
+                ],
+                Text(text, style: Theme.of(context).textTheme.bodyMedium),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEquipmentCard(
+    BuildContext context,
+    Equipment equipment,
+    Exercise exercise, {
+    required RecognitionResult? scan,
+  }) {
+    final confidence = scan?.confidence ?? 0;
+    final isLowConfidence =
+        scan != null && !scan.isConfident(AppConstants.highConfidenceThreshold);
+    final confidenceColor =
+        isLowConfidence ? AppColors.warning : AppColors.success;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppConstants.spacingMd),
@@ -171,21 +278,26 @@ class ResultsScreen extends ConsumerWidget {
                 _buildDifficultyBadge(context, exercise.difficulty),
               ],
             ),
-            if (confidence > 0) ...[
+            if (scan != null) ...[
               const SizedBox(height: AppConstants.spacingMd),
               Row(
                 children: [
-                  const Icon(
-                    Icons.check_circle,
-                    color: AppColors.success,
+                  Icon(
+                    isLowConfidence ? Icons.help_outline : Icons.check_circle,
+                    color: confidenceColor,
                     size: 16,
                   ),
                   const SizedBox(width: AppConstants.spacingXs),
-                  Text(
-                    'Confidence: ${(confidence * 100).toStringAsFixed(0)}%',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.success,
-                        ),
+                  Expanded(
+                    child: Text(
+                      isLowConfidence
+                          ? 'Best guess (${(confidence * 100).toStringAsFixed(0)}% sure) '
+                              '— check it matches what you see'
+                          : 'Identified (${(confidence * 100).toStringAsFixed(0)}% sure)',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: confidenceColor,
+                          ),
+                    ),
                   ),
                 ],
               ),
@@ -196,7 +308,8 @@ class ResultsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildDifficultyBadge(BuildContext context, ExerciseDifficulty difficulty) {
+  Widget _buildDifficultyBadge(
+      BuildContext context, ExerciseDifficulty difficulty) {
     Color badgeColor;
     switch (difficulty) {
       case ExerciseDifficulty.beginner:
@@ -216,7 +329,7 @@ class ResultsScreen extends ConsumerWidget {
         vertical: AppConstants.spacingSm,
       ),
       decoration: BoxDecoration(
-        color: badgeColor.withOpacity(0.1),
+        color: badgeColor.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(AppConstants.radiusSm),
         border: Border.all(color: badgeColor, width: 1),
       ),
@@ -229,46 +342,29 @@ class ResultsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildVideoPlayer(BuildContext context, String? videoUrl) {
-    // TODO: Implement actual video player with chewie
-    return Card(
-      child: Container(
-        height: 200,
-        decoration: BoxDecoration(
-          color: Colors.black87,
-          borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              IconButton(
-                onPressed: () {
-                  // TODO: Implement video playback
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Video player coming soon'),
-                    ),
-                  );
-                },
-                icon: const Icon(
-                  Icons.play_circle_fill,
-                  size: 64,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: AppConstants.spacingSm),
-              Text(
-                'Watch Exercise Demo',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.white70,
-                    ),
-              ),
-            ],
-          ),
-        ),
-      ),
+  Widget _buildDemoLink(
+      BuildContext context, Equipment equipment, Exercise exercise) {
+    return OutlinedButton.icon(
+      onPressed: () => _openDemoVideos(context, equipment, exercise),
+      icon: const Icon(Icons.play_circle_outline),
+      label: const Text('Watch a demo'),
     );
+  }
+
+  Future<void> _openDemoVideos(
+    BuildContext context,
+    Equipment equipment,
+    Exercise exercise,
+  ) async {
+    final query = '${exercise.name} ${equipment.name} how to proper form';
+    final uri =
+        Uri.https('www.youtube.com', '/results', {'search_query': query});
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Couldn\'t open YouTube.')),
+      );
+    }
   }
 
   Widget _buildMusclesSection(BuildContext context, Exercise exercise) {
@@ -298,7 +394,8 @@ class ResultsScreen extends ConsumerWidget {
               children: exercise.primaryMuscles
                   .map((muscle) => Chip(
                         label: Text(muscle),
-                        backgroundColor: AppColors.primary.withOpacity(0.1),
+                        backgroundColor:
+                            AppColors.primary.withValues(alpha: 0.1),
                         labelStyle: const TextStyle(color: AppColors.primary),
                       ))
                   .toList(),
@@ -345,7 +442,8 @@ class ResultsScreen extends ConsumerWidget {
             ),
             const SizedBox(height: AppConstants.spacingMd),
             ...exercise.steps.asMap().entries.map((entry) => Padding(
-                  padding: const EdgeInsets.only(bottom: AppConstants.spacingMd),
+                  padding:
+                      const EdgeInsets.only(bottom: AppConstants.spacingMd),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -402,7 +500,8 @@ class ResultsScreen extends ConsumerWidget {
             ),
             const SizedBox(height: AppConstants.spacingMd),
             ...exercise.safetyTips.map((tip) => Padding(
-                  padding: const EdgeInsets.only(bottom: AppConstants.spacingSm),
+                  padding:
+                      const EdgeInsets.only(bottom: AppConstants.spacingSm),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -446,7 +545,8 @@ class ResultsScreen extends ConsumerWidget {
             ),
             const SizedBox(height: AppConstants.spacingMd),
             ...exercise.commonMistakes.map((mistake) => Padding(
-                  padding: const EdgeInsets.only(bottom: AppConstants.spacingSm),
+                  padding:
+                      const EdgeInsets.only(bottom: AppConstants.spacingSm),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -471,12 +571,12 @@ class ResultsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildActionButtons(BuildContext context) {
+  Widget _buildActionButtons(BuildContext context, {required bool isScan}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ElevatedButton.icon(
-          onPressed: () => context.go(AppRoutes.scan),
+          onPressed: () => context.pushReplacement(AppRoutes.scan),
           icon: const Icon(Icons.camera_alt),
           label: const Text('Scan Again'),
         ),
@@ -484,7 +584,8 @@ class ResultsScreen extends ConsumerWidget {
         OutlinedButton.icon(
           onPressed: () => context.push(AppRoutes.browse),
           icon: const Icon(Icons.search),
-          label: const Text('Not right? Pick manually'),
+          label: Text(
+              isScan ? 'Not right? Pick manually' : 'Browse other equipment'),
         ),
       ],
     );

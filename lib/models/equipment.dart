@@ -16,7 +16,7 @@ class Equipment {
     required this.defaultExerciseId,
   });
 
-  /// Creates Equipment from Firestore document data.
+  /// Creates Equipment from serialized map data.
   factory Equipment.fromMap(Map<String, dynamic> map, String documentId) {
     return Equipment(
       id: documentId,
@@ -30,7 +30,7 @@ class Equipment {
     );
   }
 
-  /// Converts Equipment to Firestore document data.
+  /// Converts Equipment to serializable map data.
   Map<String, dynamic> toMap() {
     return {
       'name': name,
@@ -41,7 +41,8 @@ class Equipment {
   }
 
   @override
-  String toString() => 'Equipment(id: $id, name: $name, category: ${category.displayName})';
+  String toString() =>
+      'Equipment(id: $id, name: $name, category: ${category.displayName})';
 
   @override
   bool operator ==(Object other) =>

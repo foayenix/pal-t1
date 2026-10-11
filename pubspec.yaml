@@ -1,5 +1,5 @@
 name: pal_app
-description: PAL - Personal AI Lifter. A gym companion app that recognises equipment and shows exercise instructions.
+description: PAL - Point and Lift. Snap a photo of gym equipment and learn how to use it.
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -12,55 +12,40 @@ dependencies:
 
   # State Management
   flutter_riverpod: ^2.4.9
-  riverpod_annotation: ^2.3.3
 
   # Navigation
   go_router: ^13.2.0
 
-  # Firebase (uncomment when configured)
-  # Run: flutterfire configure
-  # firebase_core: ^2.25.4
-  # cloud_firestore: ^4.15.8
-  # firebase_storage: ^11.6.9
-
   # Camera & Image
   image_picker: ^1.0.7
-  camera: ^0.10.5+9
 
-  # Video Player
-  video_player: ^2.8.3
-  chewie: ^1.7.4
+  # Claude API calls for equipment recognition
+  http: ^1.2.0
 
-  # UI & Utilities
-  cached_network_image: ^3.3.1
-  shimmer: ^3.0.0
-  google_fonts: ^6.1.0
+  # Opens exercise demo videos in YouTube / the browser
+  url_launcher: ^6.2.0
+
+  # UI
   flutter_animate: ^4.5.0
-
-  # Icons
   cupertino_icons: ^1.0.6
-
-  # Utilities
-  path_provider: ^2.1.2
-  uuid: ^4.3.3
-  collection: ^1.18.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.1
-  riverpod_generator: ^2.3.9
-  build_runner: ^2.4.8
-  json_serializable: ^6.7.1
+  image_picker_platform_interface: ^2.11.2
 
 flutter:
   uses-material-design: true
 
-  # Note: Assets directories need at least one file
-  # Uncomment when you add images or data files
-  # assets:
-  #   - assets/images/
-  #   - assets/data/
-
-  # Using google_fonts package instead of local fonts
-  # This downloads fonts automatically at runtime
+  # Bundled so text renders correctly with no signal (gyms are often basements).
+  fonts:
+    - family: Poppins
+      fonts:
+        - asset: assets/fonts/Poppins-Regular.ttf
+        - asset: assets/fonts/Poppins-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Poppins-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Poppins-Bold.ttf
+          weight: 700

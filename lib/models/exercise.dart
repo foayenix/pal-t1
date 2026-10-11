@@ -11,7 +11,6 @@ class Exercise {
   final List<String> steps;
   final List<String> safetyTips;
   final List<String> commonMistakes;
-  final String? videoUrl;
 
   const Exercise({
     required this.id,
@@ -23,10 +22,9 @@ class Exercise {
     required this.steps,
     required this.safetyTips,
     required this.commonMistakes,
-    this.videoUrl,
   });
 
-  /// Creates Exercise from Firestore document data.
+  /// Creates Exercise from serialized map data.
   factory Exercise.fromMap(Map<String, dynamic> map, String documentId) {
     return Exercise(
       id: documentId,
@@ -41,11 +39,10 @@ class Exercise {
       steps: List<String>.from(map['steps'] ?? []),
       safetyTips: List<String>.from(map['safetyTips'] ?? []),
       commonMistakes: List<String>.from(map['commonMistakes'] ?? []),
-      videoUrl: map['videoUrl'] as String?,
     );
   }
 
-  /// Converts Exercise to Firestore document data.
+  /// Converts Exercise to serializable map data.
   Map<String, dynamic> toMap() {
     return {
       'equipmentId': equipmentId,
@@ -56,12 +53,12 @@ class Exercise {
       'steps': steps,
       'safetyTips': safetyTips,
       'commonMistakes': commonMistakes,
-      'videoUrl': videoUrl,
     };
   }
 
   @override
-  String toString() => 'Exercise(id: $id, name: $name, difficulty: ${difficulty.displayName})';
+  String toString() =>
+      'Exercise(id: $id, name: $name, difficulty: ${difficulty.displayName})';
 
   @override
   bool operator ==(Object other) =>

@@ -57,14 +57,14 @@ class HomeScreen extends StatelessWidget {
               Container(
                 height: 200,
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
+                  color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(AppConstants.radiusXl),
                 ),
                 child: Center(
                   child: Icon(
                     Icons.fitness_center,
                     size: 80,
-                    color: AppColors.primary.withOpacity(0.5),
+                    color: AppColors.primary.withValues(alpha: 0.5),
                   ),
                 ),
               )
@@ -111,47 +111,6 @@ class HomeScreen extends StatelessWidget {
                   .animate()
                   .fadeIn(delay: 600.ms, duration: 400.ms)
                   .slideY(begin: 0.3, duration: 400.ms),
-
-              const SizedBox(height: AppConstants.spacingXl),
-
-              // Recent scans placeholder
-              Text(
-                'Recent Scans',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: AppColors.textSecondaryLight,
-                    ),
-              ).animate().fadeIn(delay: 700.ms, duration: 400.ms),
-
-              const SizedBox(height: AppConstants.spacingMd),
-
-              // Recent scans list (placeholder)
-              SizedBox(
-                height: 80,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: 3,
-                  itemBuilder: (context, index) {
-                    return Container(
-                      width: 80,
-                      margin: const EdgeInsets.only(right: AppConstants.spacingMd),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceLight,
-                        borderRadius: BorderRadius.circular(AppConstants.radiusMd),
-                        border: Border.all(color: AppColors.borderLight),
-                      ),
-                      child: Center(
-                        child: Icon(
-                          Icons.fitness_center,
-                          color: AppColors.textSecondaryLight.withOpacity(0.5),
-                        ),
-                      ),
-                    )
-                        .animate()
-                        .fadeIn(delay: (800 + index * 100).ms, duration: 400.ms)
-                        .scale(begin: const Offset(0.8, 0.8), duration: 300.ms);
-                  },
-                ),
-              ),
 
               const SizedBox(height: AppConstants.spacingMd),
             ],

@@ -2,7 +2,7 @@
 class AppConstants {
   // App info
   static const String appName = 'PAL';
-  static const String appFullName = 'Personal AI Lifter';
+  static const String appFullName = 'Point and Lift';
   static const String appTagline = 'Point, snap, lift smarter.';
   static const String appVersion = '1.0.0';
 
@@ -26,17 +26,14 @@ class AppConstants {
   static const double radiusLg = 16.0;
   static const double radiusXl = 24.0;
 
-  // API endpoints (placeholder for future integration)
-  // TODO: Replace with actual API endpoint when ready
-  static const String recognitionApiBaseUrl = 'https://api.example.com';
-  static const String recognitionEndpoint = '/recognise-equipment';
+  // Recognition confidence: below the minimum we don't show a guide at all;
+  // between the two we show it but flag it as a best guess.
+  static const double minConfidenceThreshold = 0.4;
+  static const double highConfidenceThreshold = 0.75;
 
-  // Confidence threshold for recognition
-  static const double minConfidenceThreshold = 0.5;
-
-  // Image settings
-  static const int maxImageWidth = 1024;
-  static const int maxImageHeight = 1024;
+  // Image settings (photos are downscaled before upload to keep scans fast)
+  static const int maxImageWidth = 1280;
+  static const int maxImageHeight = 1280;
   static const int imageQuality = 85;
 }
 

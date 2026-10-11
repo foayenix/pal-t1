@@ -13,11 +13,9 @@ class PalApp extends ConsumerWidget {
     final router = ref.watch(routerProvider);
 
     return MaterialApp.router(
-      title: 'PAL - Personal AI Lifter',
+      title: 'PAL - Point and Lift',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.light,
       routerConfig: router,
     );
   }

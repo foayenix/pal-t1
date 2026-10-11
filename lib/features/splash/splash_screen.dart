@@ -47,7 +47,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 borderRadius: BorderRadius.circular(30),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
+                    color: Colors.black.withValues(alpha: 0.2),
                     blurRadius: 20,
                     offset: const Offset(0, 10),
                   ),
@@ -96,12 +96,10 @@ class _SplashScreenState extends State<SplashScreen> {
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: Colors.white.withOpacity(0.9),
+                color: Colors.white.withValues(alpha: 0.9),
                 letterSpacing: 2,
               ),
-            )
-                .animate()
-                .fadeIn(delay: 500.ms, duration: 500.ms),
+            ).animate().fadeIn(delay: 500.ms, duration: 500.ms),
 
             const SizedBox(height: 48),
 
@@ -111,11 +109,9 @@ class _SplashScreenState extends State<SplashScreen> {
               style: TextStyle(
                 fontSize: 16,
                 fontStyle: FontStyle.italic,
-                color: Colors.white.withOpacity(0.8),
+                color: Colors.white.withValues(alpha: 0.8),
               ),
-            )
-                .animate()
-                .fadeIn(delay: 800.ms, duration: 500.ms),
+            ).animate().fadeIn(delay: 800.ms, duration: 500.ms),
 
             const SizedBox(height: 64),
 
@@ -126,12 +122,10 @@ class _SplashScreenState extends State<SplashScreen> {
               child: CircularProgressIndicator(
                 strokeWidth: 3,
                 valueColor: AlwaysStoppedAnimation<Color>(
-                  Colors.white.withOpacity(0.8),
+                  Colors.white.withValues(alpha: 0.8),
                 ),
               ),
-            )
-                .animate()
-                .fadeIn(delay: 1000.ms, duration: 300.ms),
+            ).animate().fadeIn(delay: 1000.ms, duration: 300.ms),
           ],
         ),
       ),

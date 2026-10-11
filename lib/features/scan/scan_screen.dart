@@ -1,4 +1,5 @@
-import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../app/router.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
+import '../../models/recognition_result.dart';
 import '../../providers/providers.dart';
 
 /// State for the scan screen
@@ -23,113 +25,84 @@ class ScanScreen extends ConsumerStatefulWidget {
 class _ScanScreenState extends ConsumerState<ScanScreen> {
   final ImagePicker _picker = ImagePicker();
   ScanState _state = ScanState.initial;
-  File? _selectedImage;
+  Uint8List? _selectedImage;
+  String _errorTitle = '';
   String? _errorMessage;
 
-  Future<void> _takePhoto() async {
-    try {
-      setState(() {
-        _state = ScanState.capturing;
-        _errorMessage = null;
-      });
-
-      final XFile? photo = await _picker.pickImage(
-        source: ImageSource.camera,
-        maxWidth: AppConstants.maxImageWidth.toDouble(),
-        maxHeight: AppConstants.maxImageHeight.toDouble(),
-        imageQuality: AppConstants.imageQuality,
-      );
-
-      if (photo != null) {
-        await _processImage(File(photo.path));
-      } else {
-        setState(() => _state = ScanState.initial);
-      }
-    } catch (e) {
-      setState(() {
-        _state = ScanState.error;
-        _errorMessage = 'Failed to capture photo: ${e.toString()}';
-      });
-    }
-  }
-
-  Future<void> _pickFromGallery() async {
-    try {
-      setState(() {
-        _state = ScanState.capturing;
-        _errorMessage = null;
-      });
-
-      final XFile? image = await _picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: AppConstants.maxImageWidth.toDouble(),
-        maxHeight: AppConstants.maxImageHeight.toDouble(),
-        imageQuality: AppConstants.imageQuality,
-      );
-
-      if (image != null) {
-        await _processImage(File(image.path));
-      } else {
-        setState(() => _state = ScanState.initial);
-      }
-    } catch (e) {
-      setState(() {
-        _state = ScanState.error;
-        _errorMessage = 'Failed to select image: ${e.toString()}';
-      });
-    }
-  }
-
-  Future<void> _processImage(File imageFile) async {
+  Future<void> _pickImage(ImageSource source) async {
     setState(() {
-      _selectedImage = imageFile;
-      _state = ScanState.processing;
+      _state = ScanState.capturing;
+      _errorMessage = null;
     });
 
     try {
-      // Get the recognition service from the provider
-      final recognitionService = ref.read(recognitionServiceProvider);
-
-      // Call the recognition service
-      final result = await recognitionService.recogniseEquipment(imageFile);
-
+      final XFile? image = await _picker.pickImage(
+        source: source,
+        maxWidth: AppConstants.maxImageWidth.toDouble(),
+        maxHeight: AppConstants.maxImageHeight.toDouble(),
+        imageQuality: AppConstants.imageQuality,
+      );
       if (!mounted) return;
 
-      if (result.isSuccessful) {
-        // Check if confidence is above threshold
-        if (result.isConfident(AppConstants.minConfidenceThreshold)) {
-          // Navigate to results with the recognised equipment
-          context.push(
-            AppRoutes.results,
-            extra: {
-              'equipmentId': result.equipmentId,
-              'confidence': result.confidence,
-            },
-          );
-        } else {
-          // Low confidence - show error and suggest manual selection
-          setState(() {
-            _state = ScanState.error;
-            _errorMessage = 'Could not confidently identify the equipment. '
-                'Confidence: ${(result.confidence * 100).toStringAsFixed(0)}%. '
-                'Please try again or select manually.';
-          });
-        }
-      } else {
-        // Recognition failed
-        setState(() {
-          _state = ScanState.error;
-          _errorMessage = result.errorMessage ?? 'Recognition failed. Please try again.';
-        });
+      if (image == null) {
+        setState(() => _state = ScanState.initial);
+        return;
       }
+      await _processImage(await image.readAsBytes());
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _state = ScanState.error;
-          _errorMessage = 'An error occurred: ${e.toString()}';
-        });
-      }
+      _showError(
+        'Couldn\'t get the photo',
+        source == ImageSource.camera
+            ? 'The camera couldn\'t be opened. Check that PAL has camera '
+                'permission in your phone\'s settings.'
+            : 'The photo couldn\'t be loaded. Check that PAL has photo '
+                'access in your phone\'s settings.',
+      );
     }
+  }
+
+  Future<void> _processImage(Uint8List imageBytes) async {
+    setState(() {
+      _selectedImage = imageBytes;
+      _state = ScanState.processing;
+    });
+
+    final recognitionService = ref.read(recognitionServiceProvider);
+    final result = await recognitionService.recogniseEquipment(imageBytes);
+    if (!mounted) return;
+
+    switch (result.status) {
+      case RecognitionStatus.failed:
+        _showError('Something went wrong',
+            result.message ?? 'Recognition failed. Please try again.');
+      case RecognitionStatus.notEquipment:
+        _showError(
+          'Couldn\'t spot any equipment',
+          '${result.message ?? 'That doesn\'t look like gym equipment.'} '
+              'Try again with the whole machine in frame.',
+        );
+      case RecognitionStatus.recognised:
+        if (!result.isConfident(AppConstants.minConfidenceThreshold)) {
+          final guess = result.equipment?.name;
+          _showError(
+            'Not sure what that is',
+            '${guess == null ? 'The photo was too unclear' : 'It might be a $guess, but I\'m not confident'}. '
+                'Try a clearer photo from a few steps back, or pick it manually.',
+          );
+          return;
+        }
+        ref.read(lastScanProvider.notifier).state = result;
+        context.pushReplacement(AppRoutes.scanResults);
+    }
+  }
+
+  void _showError(String title, String message) {
+    if (!mounted) return;
+    setState(() {
+      _state = ScanState.error;
+      _errorTitle = title;
+      _errorMessage = message;
+    });
   }
 
   @override
@@ -139,7 +112,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
         title: const Text('Scan Equipment'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
+          onPressed: () => popOrGoHome(context),
         ),
       ),
       body: _buildBody(),
@@ -147,6 +120,9 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   }
 
   Widget _buildBody() {
+    if (!ref.watch(scanConfiguredProvider)) {
+      return _buildNotConfiguredView();
+    }
     switch (_state) {
       case ScanState.initial:
         return _buildInitialView();
@@ -157,6 +133,40 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       case ScanState.error:
         return _buildErrorView();
     }
+  }
+
+  Widget _buildNotConfiguredView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppConstants.spacingLg),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.key_off, size: 64, color: AppColors.warning),
+            const SizedBox(height: AppConstants.spacingMd),
+            Text(
+              'Scanning isn\'t set up yet',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: AppConstants.spacingSm),
+            Text(
+              'This build has no Anthropic API key. Rebuild the app with '
+              '--dart-define-from-file=pal_secrets.json (see the README). '
+              'You can still browse equipment manually.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textSecondaryLight,
+                  ),
+            ),
+            const SizedBox(height: AppConstants.spacingXl),
+            ElevatedButton(
+              onPressed: () => context.pushReplacement(AppRoutes.browse),
+              child: const Text('Browse Manually'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildInitialView() {
@@ -170,7 +180,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
           Container(
             padding: const EdgeInsets.all(AppConstants.spacingLg),
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.1),
+              color: AppColors.primary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(AppConstants.radiusLg),
             ),
             child: Column(
@@ -204,7 +214,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
           SizedBox(
             height: 60,
             child: ElevatedButton.icon(
-              onPressed: _takePhoto,
+              onPressed: () => _pickImage(ImageSource.camera),
               icon: const Icon(Icons.camera_alt, size: 28),
               label: const Text(
                 'Take Photo',
@@ -219,7 +229,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
           SizedBox(
             height: 52,
             child: OutlinedButton.icon(
-              onPressed: _pickFromGallery,
+              onPressed: () => _pickImage(ImageSource.gallery),
               icon: const Icon(Icons.photo_library, size: 24),
               label: const Text(
                 'Choose from Gallery',
@@ -233,8 +243,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
           // Browse manually link
           TextButton(
             onPressed: () {
-              context.pop();
-              context.push(AppRoutes.browse);
+              context.pushReplacement(AppRoutes.browse);
             },
             child: const Text(
               'Or browse equipment manually',
@@ -277,14 +286,14 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                   borderRadius: BorderRadius.circular(AppConstants.radiusLg),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withValues(alpha: 0.1),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
                   ],
                 ),
                 clipBehavior: Clip.antiAlias,
-                child: Image.file(
+                child: Image.memory(
                   _selectedImage!,
                   fit: BoxFit.cover,
                 ),
@@ -330,7 +339,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
             ),
             const SizedBox(height: AppConstants.spacingMd),
             Text(
-              'Oops! Something went wrong',
+              _errorTitle,
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: AppConstants.spacingSm),
@@ -355,8 +364,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
             const SizedBox(height: AppConstants.spacingMd),
             OutlinedButton(
               onPressed: () {
-                context.pop();
-                context.push(AppRoutes.browse);
+                context.pushReplacement(AppRoutes.browse);
               },
               child: const Text('Browse Manually'),
             ),

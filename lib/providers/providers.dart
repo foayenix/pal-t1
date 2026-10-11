@@ -1,10 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/config/app_config.dart';
 import '../models/equipment.dart';
 import '../models/exercise.dart';
+import '../models/recognition_result.dart';
 import '../repositories/equipment_repository.dart';
 import '../repositories/exercise_repository.dart';
-import '../services/recognition/mock_recognition_service.dart';
+import '../services/recognition/claude_recognition_service.dart';
 import '../services/recognition/recognition_service.dart';
 
 // =============================================================================
@@ -25,18 +27,18 @@ final exerciseRepositoryProvider = Provider<ExerciseRepository>((ref) {
 // SERVICES
 // =============================================================================
 
-/// Provider for EquipmentRecognitionService
-///
-/// Currently uses MockEquipmentRecognitionService.
-/// To switch to a real service:
-/// 1. Create your implementation (e.g., RoboflowRecognitionService)
-/// 2. Replace the return statement below
-final recognitionServiceProvider = Provider<EquipmentRecognitionService>((ref) {
-  // TODO: Replace with real recognition service when ready
-  // return RoboflowRecognitionService(apiKey: 'your-api-key', modelEndpoint: 'your-endpoint');
-  // return TFLiteRecognitionService(modelPath: 'assets/models/equipment.tflite');
+/// Whether photo scanning is set up (an API key was provided at build time).
+final scanConfiguredProvider =
+    Provider<bool>((ref) => AppConfig.isScanConfigured);
 
-  return MockEquipmentRecognitionService();
+/// Provider for EquipmentRecognitionService (Claude vision).
+final recognitionServiceProvider = Provider<EquipmentRecognitionService>((ref) {
+  final service = ClaudeRecognitionService(
+    apiKey: AppConfig.anthropicApiKey,
+    catalog: EquipmentRepository.catalog,
+  );
+  ref.onDispose(service.dispose);
+  return service;
 });
 
 // =============================================================================
@@ -50,7 +52,8 @@ final allEquipmentProvider = FutureProvider<List<Equipment>>((ref) async {
 });
 
 /// Provider for fetching equipment by ID
-final equipmentByIdProvider = FutureProvider.family<Equipment?, String>((ref, id) async {
+final equipmentByIdProvider =
+    FutureProvider.family<Equipment?, String>((ref, id) async {
   final repository = ref.watch(equipmentRepositoryProvider);
   return repository.getEquipmentById(id);
 });
@@ -62,13 +65,15 @@ final allExercisesProvider = FutureProvider<List<Exercise>>((ref) async {
 });
 
 /// Provider for fetching exercise by ID
-final exerciseByIdProvider = FutureProvider.family<Exercise?, String>((ref, id) async {
+final exerciseByIdProvider =
+    FutureProvider.family<Exercise?, String>((ref, id) async {
   final repository = ref.watch(exerciseRepositoryProvider);
   return repository.getExerciseById(id);
 });
 
 /// Provider for fetching exercise by equipment ID
-final exerciseByEquipmentIdProvider = FutureProvider.family<Exercise?, String>((ref, equipmentId) async {
+final exerciseByEquipmentIdProvider =
+    FutureProvider.family<Exercise?, String>((ref, equipmentId) async {
   final repository = ref.watch(exerciseRepositoryProvider);
   return repository.getExerciseByEquipmentId(equipmentId);
 });
@@ -92,12 +97,11 @@ final filteredEquipmentProvider = FutureProvider<List<Equipment>>((ref) async {
   return allEquipment.where((equipment) {
     final matchesCategory = selectedCategory == 'All' ||
         equipment.category.displayName == selectedCategory;
-    final matchesSearch = equipment.name
-        .toLowerCase()
-        .contains(searchQuery.toLowerCase());
+    final matchesSearch =
+        equipment.name.toLowerCase().contains(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   }).toList();
 });
 
-/// Provider for recent scans (placeholder for future implementation)
-final recentScansProvider = StateProvider<List<String>>((ref) => []);
+/// The most recent successful scan, shown by the results screen.
+final lastScanProvider = StateProvider<RecognitionResult?>((ref) => null);
